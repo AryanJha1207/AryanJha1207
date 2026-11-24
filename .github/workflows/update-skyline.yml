@@ -1,0 +1,51 @@
+name: Update skyline
+
+# Rebuilds assets/skyline.svg from your real GitHub activity.
+#  - on every push to the default branch (so new commits show up)
+#  - every 6 hours (so the picture keeps up as time passes)
+#  - on demand from the Actions tab
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - "assets/skyline.svg"
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-skyline
+  cancel-in-progress: true
+
+jobs:
+  skyline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate skyline
+        env:
+          GH_USER: ${{ github.repository_owner }}
+          # Optional: add a repo secret named PROFILE_TOKEN (a classic PAT with the
+          # "read:user" scope) to also count private contributions.
+          GH_TOKEN: ${{ secrets.PROFILE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: python scripts/generate_skyline.py --out assets/skyline.svg
+
+      - name: Commit if it changed
+        run: |
+          if git diff --quiet -- assets/skyline.svg; then
+            echo "skyline unchanged"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add assets/skyline.svg
+            git commit -m "chore: refresh activity skyline"
+            git push
+          fi
